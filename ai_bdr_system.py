@@ -1,16 +1,18 @@
 import streamlit as st
 import os
 from dotenv import load_dotenv
-from crewai import Crew, Process, Task
 import pandas as pd
 from datetime import datetime
 import json
+
+# --- 1. FIXED IMPORTS (Flat Structure) ---
+# We assume all your python files are in the same main folder
 from mcp_client import BrightDataMCP
-from agents.company_discovery import create_company_discovery_agent
-from agents.trigger_detection import create_trigger_detection_agent
-from agents.contact_research import create_contact_research_agent
-from agents.message_generation import create_message_generation_agent
-from agents.pipeline_manager import create_pipeline_manager_agent
+from agents.company_discovery import CompanyDiscoveryTool
+from agents.trigger_detection import TriggerDetectionTool
+from agents.contact_research import ContactResearchTool
+from agents.message_generation import MessageGenerationTool
+from agents.pipeline_manager import LeadScoringTool, CRMIntegrationTool
 
 load_dotenv()
 
@@ -20,6 +22,56 @@ st.set_page_config(
     layout="wide"
 )
 
+# --- 2. THE ADAPTER (CRITICAL FOR AGENTS TO WORK) ---
+class BrightDataAdapter:
+    def __init__(self, mcp_client):
+        self.client = mcp_client
+
+    def _normalize_results(self, raw_result):
+        if not raw_result: return []
+        items = raw_result.get('organic') or raw_result.get('results') or []
+        normalized = []
+        for item in items:
+            normalized.append({
+                'title': item.get('title', ''),
+                'snippet': item.get('snippet', '') or item.get('description', ''),
+                'url': item.get('link', '') or item.get('url', ''),
+                'link': item.get('link', '') or item.get('url', '')
+            })
+        return normalized
+
+    def search_general(self, query):
+        # Pass-through for Discovery Agent
+        raw = self.client._mcp_search(query)
+        return {'results': self._normalize_results(raw)}
+
+    def search_company_news(self, query):
+        final_query = f"{query} latest business news"
+        raw = self.client._mcp_search(final_query)
+        return {'results': self._normalize_results(raw)}
+
+    def search_funding_news(self, query):
+        final_query = f"{query} funding round series valuation"
+        raw = self.client._mcp_search(final_query)
+        return {'results': self._normalize_results(raw)}
+
+    def scrape_company_linkedin(self, company_name):
+        final_query = f"site:linkedin.com/company {company_name} hiring jobs"
+        raw = self.client._mcp_search(final_query)
+        normalized = self._normalize_results(raw)
+        
+        hiring_posts = []
+        for item in normalized:
+            text = (item['title'] + " " + item['snippet']).lower()
+            if any(x in text for x in ['hiring', 'jobs', 'careers', 'vacancy']):
+                hiring_posts.append(item)
+
+        return {
+            'hiring_posts': hiring_posts,
+            'recent_activity': normalized[:2]
+        }
+
+# --- 3. UI LAYOUT ---
 st.title("🤖 AI BDR/SDR Agent System")
 st.markdown("**Real-time prospecting with multi-agent intelligence and trigger-based personalization**")
 
@@ -27,71 +79,41 @@ if 'workflow_results' not in st.session_state:
     st.session_state.workflow_results = None
 
 with st.sidebar:
-    try:
-        st.image("bright-data-logo.png", width=200)
-        st.markdown("---")
-    except:
-        st.markdown("**🌐 Powered by Bright Data**")
-        st.markdown("---")
-    
     st.header("⚙️ Configuration")
     
     st.subheader("Ideal Customer Profile")
-    industry = st.selectbox("Industry", ["SaaS", "FinTech", "E-commerce", "Healthcare", "AI/ML"])
+    industry = st.selectbox("Industry", ["SaaS", "FinTech", "E-commerce", "Healthcare", "AI/ML", "Quantitative Hedge Funds"])
     size_range = st.selectbox("Company Size", ["startup", "small", "medium", "enterprise"])
     location = st.text_input("Location (optional)", placeholder="San Francisco, NY, etc.")
-    max_companies = st.slider("Max Companies", 5, 50, 20)
+    max_companies = st.slider("Max Companies", 5, 50, 5)
     
     st.subheader("Target Decision Makers")
-    all_roles = ["CEO", "CTO", "VP Engineering", "Head of Product", "VP Sales", "CMO", "CFO"]
-    target_roles = st.multiselect("Roles", all_roles, default=["CEO", "CTO", "VP Engineering"])
+    all_roles = ["CEO", "CTO", "VP Engineering", "Head of Product", "VP Sales", "CMO", "CFO","Head of Quantitative Strategies","Business Development Director","Hedge Fund Solutions","Head of Quant Research","Chief Investment Science Officer","Head of Quantitative Research","Quant PM"]
+    target_roles = st.multiselect("Roles", all_roles, default=["CEO", "CTO", "VP Engineering","CFO"])
     
     st.subheader("Outreach Configuration")
     message_types = st.multiselect(
         "Message Types",
-        ["cold_email", "linkedin_message", "follow_up"],
+        ["cold_email", "linkedin_message"],
         default=["cold_email"]
     )
     
     with st.expander("Advanced Intelligence"):
-        enable_competitive = st.checkbox("Competitive Intelligence", value=True)
-        enable_validation = st.checkbox("Multi-source Validation", value=True)
         min_lead_grade = st.selectbox("Min CRM Export Grade", ["A", "B", "C"], index=1)
     
     st.divider()
-    
     st.subheader("🔗 API Status")
     
-    apis = [
-        ("Bright Data", "BRIGHT_DATA_API_TOKEN", "🌐"),
-        ("OpenAI", "OPENAI_API_KEY", "🧠"),
-        ("HubSpot CRM", "HUBSPOT_API_KEY", "📊")
-    ]
-    
-    for name, env_var, icon in apis:
-        if os.getenv(env_var):
-            st.success(f"{icon} {name} Connected")
-        else:
-            if name == "HubSpot CRM":
-                st.warning(f"⚠️ {name} Required for CRM export")
-            elif name == "Bright Data":
-                st.error(f"❌ {name} Missing")
-                if st.button("🔧 Configuration Help", key="bright_data_help"):
-                    st.info("""
-                    **Bright Data Setup Required:**
-                    
-                    1. Get credentials from Bright Data dashboard
-                    2. Update .env file with:
-                       ```
-                       BRIGHT_DATA_API_TOKEN=your_password
-                       WEB_UNLOCKER_ZONE=lum-customer-username-zone-zonename
-                       ```
-                    3. See BRIGHT_DATA_SETUP.md for detailed guide
-                    
-                    **Current Error**: 407 Invalid Auth = Wrong credentials
-                    """)
-            else:
-                st.error(f"❌ {name} Missing")
+    # Simple Check
+    if os.getenv("BRIGHT_DATA_API_TOKEN"):
+        st.success("🌐 Bright Data Connected")
+    else:
+        st.error("❌ Bright Data Missing")
+
+    if os.getenv("OPENAI_API_KEY"):
+        st.success("🧠 OpenAI Connected")
+    else:
+        st.error("❌ OpenAI Missing")
 
 col1, col2 = st.columns([3, 1])
 
@@ -99,131 +121,78 @@ with col1:
     st.subheader("🚀 AI Prospecting Workflow")
     
     if st.button("Start Multi-Agent Prospecting", type="primary", use_container_width=True):
-        required_keys = ["BRIGHT_DATA_API_TOKEN", "OPENAI_API_KEY"]
-        missing_keys = [key for key in required_keys if not os.getenv(key)]
-        
-        if missing_keys:
-            st.error(f"Missing required API keys: {', '.join(missing_keys)}")
+        if not os.getenv("BRIGHT_DATA_API_TOKEN"):
+            st.error("Missing Bright Data Token")
             st.stop()
         
         progress_bar = st.progress(0)
         status_text = st.empty()
         
         try:
-            mcp_client = BrightDataMCP()
+            # --- 4. INITIALIZE TOOLS ---
+            raw_client = BrightDataMCP()
+            adapter = BrightDataAdapter(raw_client) # Wrap client in adapter!
             
-            discovery_agent = create_company_discovery_agent(mcp_client)
-            trigger_agent = create_trigger_detection_agent(mcp_client)
-            contact_agent = create_contact_research_agent(mcp_client)
-            message_agent = create_message_generation_agent()
-            pipeline_agent = create_pipeline_manager_agent()
+            # Instantiate Tool Classes Directly (Robust method)
+            discovery_tool = CompanyDiscoveryTool(mcp_client=adapter)
+            trigger_tool = TriggerDetectionTool(mcp_client=adapter)
+            contact_tool = ContactResearchTool(mcp_client=adapter)
+            message_tool = MessageGenerationTool()
+            scoring_tool = LeadScoringTool()
+            crm_tool = CRMIntegrationTool()
             
-            status_text.text("🔍 Discovering companies matching ICP...")
-            progress_bar.progress(15)
+            # --- PHASE 1: DISCOVERY ---
+            status_text.text(f"🔍 Discovering {size_range} {industry} companies in {location}...")
+            progress_bar.progress(10)
             
-            discovery_task = Task(
-                description=f"Find {max_companies} companies in {industry} ({size_range} size) in {location}",
-                expected_output="List of companies with ICP scores and intelligence",
-                agent=discovery_agent
-            )
+            companies = discovery_tool._run(industry, size_range, location)
             
-            discovery_crew = Crew(
-                agents=[discovery_agent],
-                tasks=[discovery_task],
-                process=Process.sequential
-            )
+            # Limit to user selection
+            companies = companies[:max_companies]
             
-            companies = discovery_agent.tools[0]._run(industry, size_range, location)
-            
+            if not companies:
+                st.error("No companies found. Try broadening your criteria.")
+                st.stop()
+                
             st.success(f"✅ Discovered {len(companies)} companies")
             
-            status_text.text("🎯 Analyzing trigger events and buying signals...")
+            # --- PHASE 2: TRIGGERS ---
+            status_text.text("🎯 Analyzing trigger events (Funding, Hiring)...")
             progress_bar.progress(30)
             
-            trigger_task = Task(
-                description="Detect hiring spikes, funding rounds, leadership changes, and expansion signals",
-                expected_output="Companies with trigger events and scores",
-                agent=trigger_agent
-            )
-            
-            trigger_crew = Crew(
-                agents=[trigger_agent],
-                tasks=[trigger_task],
-                process=Process.sequential
-            )
-            
-            companies_with_triggers = trigger_agent.tools[0]._run(companies)
-            
+            companies_with_triggers = trigger_tool._run(companies)
             total_triggers = sum(len(c.get('trigger_events', [])) for c in companies_with_triggers)
-            
             st.success(f"✅ Detected {total_triggers} trigger events")
-            progress_bar.progress(45)
             
-            status_text.text("👥 Finding decision-maker contacts...")
+            # --- PHASE 3: CONTACTS ---
+            status_text.text("👥 Finding decision-maker contacts & verifying emails...")
+            progress_bar.progress(50)
             
-            contact_task = Task(
-                description=f"Find verified contacts for roles: {', '.join(target_roles)}",
-                expected_output="Companies with decision-maker contact information",
-                agent=contact_agent
-            )
-            
-            contact_crew = Crew(
-                agents=[contact_agent],
-                tasks=[contact_task],
-                process=Process.sequential
-            )
-            
-            companies_with_contacts = contact_agent.tools[0]._run(companies_with_triggers, target_roles)
-            
+            companies_with_contacts = contact_tool._run(companies_with_triggers, target_roles)
             total_contacts = sum(len(c.get('contacts', [])) for c in companies_with_contacts)
-            
             st.success(f"✅ Found {total_contacts} verified contacts")
-            progress_bar.progress(60)
             
-            status_text.text("✍️ Generating personalized outreach messages...")
+            # --- PHASE 4: SCORING ---
+            status_text.text("📊 Scoring leads...")
+            progress_bar.progress(70)
             
-            message_task = Task(
-                description=f"Generate {', '.join(message_types)} for each contact using trigger intelligence",
-                expected_output="Companies with personalized messages",
-                agent=message_agent
-            )
+            final_companies = scoring_tool._run(companies_with_contacts)
             
-            message_crew = Crew(
-                agents=[message_agent],
-                tasks=[message_task],
-                process=Process.sequential
-            )
+            # --- PHASE 5: MESSAGING ---
+            status_text.text("✍️ Generating personalized outreach...")
+            progress_bar.progress(85)
             
-            companies_with_messages = message_agent.tools[0]._run(companies_with_contacts, message_types[0])
+            if os.getenv("OPENAI_API_KEY"):
+                final_companies = message_tool._run(final_companies, message_types[0])
+                total_messages = sum(1 for c in final_companies for p in c.get('contacts', []) if p.get('generated_message'))
+                st.success(f"✅ Generated {total_messages} drafts")
             
-            total_messages = sum(len(c.get('contacts', [])) for c in companies_with_messages)
-            
-            st.success(f"✅ Generated {total_messages} personalized messages")
-            progress_bar.progress(75)
-            
-            status_text.text("📊 Scoring leads and updating CRM...")
-            
-            pipeline_task = Task(
-                description=f"Score leads and export Grade {min_lead_grade}+ to HubSpot CRM",
-                expected_output="Scored leads with CRM integration results",
-                agent=pipeline_agent
-            )
-            
-            pipeline_crew = Crew(
-                agents=[pipeline_agent],
-                tasks=[pipeline_task],
-                process=Process.sequential
-            )
-            
-            final_companies = pipeline_agent.tools[0]._run(companies_with_messages)
-            qualified_leads = [c for c in final_companies if c.get('lead_grade', 'D') in ['A', 'B']]
-            
-            crm_results = {"success": 0, "errors": 0}
-            if os.getenv("HUBSPOT_API_KEY"):
-                crm_results = pipeline_agent.tools[1]._run(final_companies, min_lead_grade)
-            
+            # --- FINISH ---
             progress_bar.progress(100)
             status_text.text("✅ Workflow completed successfully!")
+            
+            # Calculate Stats
+            qualified_leads = [c for c in final_companies if c.get('lead_grade', 'D') in ['A', 'B']]
             
             st.session_state.workflow_results = {
                 'companies': final_companies,
@@ -231,128 +200,85 @@ with col1:
                 'total_triggers': total_triggers,
                 'total_contacts': total_contacts,
                 'qualified_leads': len(qualified_leads),
-                'crm_results': crm_results,
+                'crm_results': {"success": 0, "errors": 0},
                 'timestamp': datetime.now()
             }
             
         except Exception as e:
             st.error(f"❌ Workflow failed: {str(e)}")
-            st.write("Please check your API configurations and try again.")
+            st.write("Check your terminal for detailed logs.")
 
+# --- 5. RESULTS DISPLAY ---
 if st.session_state.workflow_results:
     results = st.session_state.workflow_results
     
     st.markdown("---")
     st.subheader("📊 Workflow Results")
     
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Companies Analyzed", results['total_companies'])
-    with col2:
-        st.metric("Trigger Events", results['total_triggers'])
-    with col3:
-        st.metric("Contacts Found", results['total_contacts'])
-    with col4:
-        st.metric("Qualified Leads", results['qualified_leads'])
-    
-    if results['crm_results']['success'] > 0 or results['crm_results']['errors'] > 0:
-        st.subheader("🔄 HubSpot CRM Integration")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Exported to CRM", results['crm_results']['success'], delta="contacts")
-        with col2:
-            if results['crm_results']['errors'] > 0:
-                st.metric("Export Errors", results['crm_results']['errors'], delta_color="inverse")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("🏢 Companies", results['total_companies'])
+    c2.metric("⚡ Triggers", results['total_triggers'])
+    c3.metric("👥 Contacts", results['total_contacts'])
+    c4.metric("⭐ Qualified Leads", results['qualified_leads'])
     
     st.subheader("🏢 Company Intelligence")
     
-    for company in results['companies'][:10]:
-        with st.expander(f"📋 {company.get('name', 'Unknown')} - Grade {company.get('lead_grade', 'D')} (Score: {company.get('lead_score', 0):.0f})"):
+    for company in results['companies']:
+        grade_color = "🟢" if company.get('lead_grade') == 'A' else "🟡" if company.get('lead_grade') == 'B' else "🔴"
+        
+        with st.expander(f"{grade_color} {company.get('name', 'Unknown')} - Grade {company.get('lead_grade')} (Score: {company.get('lead_score', 0)})"):
             
-            col1, col2 = st.columns(2)
+            col_a, col_b = st.columns(2)
             
-            with col1:
-                st.write(f"**Industry:** {company.get('industry', 'Unknown')}")
-                st.write(f"**Domain:** {company.get('domain', 'Unknown')}")
-                st.write(f"**ICP Score:** {company.get('icp_score', 0)}")
+            with col_a:
+                st.markdown(f"**Website:** {company.get('domain')}")
+                st.markdown(f"**Industry:** {company.get('industry')}")
                 
                 triggers = company.get('trigger_events', [])
                 if triggers:
-                    st.write("**🎯 Trigger Events:**")
-                    for trigger in triggers:
-                        severity_emoji = {"high": "🔥", "medium": "⚡", "low": "💡"}.get(trigger.get('severity', 'low'), '💡')
-                        st.write(f"{severity_emoji} {trigger.get('description', 'Unknown trigger')}")
+                    st.markdown("**🔥 Key Signals:**")
+                    for t in triggers:
+                        st.markdown(f"- {t.get('description')}")
             
-            with col2:
+            with col_b:
                 contacts = company.get('contacts', [])
                 if contacts:
-                    st.write("**👥 Decision Makers:**")
-                    for contact in contacts:
-                        confidence = contact.get('confidence_score', 0)
-                        confidence_color = "🟢" if confidence >= 75 else "🟡" if confidence >= 50 else "🔴"
+                    st.markdown("**👥 Contacts:**")
+                    for c in contacts:
+                        st.markdown(f"**{c.get('first_name')} {c.get('last_name')}** ({c.get('title')})")
+                        st.markdown(f"📧 `{c.get('email')}`")
                         
-                        st.write(f"{confidence_color} **{contact.get('first_name', '')} {contact.get('last_name', '')}**")
-                        st.write(f"   {contact.get('title', 'Unknown title')}")
-                        st.write(f"   📧 {contact.get('email', 'No email')}")
-                        st.write(f"   Confidence: {confidence}%")
-                        
-                        message = contact.get('generated_message', {})
-                        if message.get('subject'):
-                            st.write(f"   **Subject:** {message['subject']}")
-                        if message.get('body'):
-                            preview = message['body'][:100] + "..." if len(message['body']) > 100 else message['body']
-                            st.write(f"   **Preview:** {preview}")
-                        st.write("---")
-    
-    st.subheader("📥 Export & Actions")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        export_data = []
-        for company in results['companies']:
-            for contact in company.get('contacts', []):
-                export_data.append({
-                    'Company': company.get('name', ''),
-                    'Industry': company.get('industry', ''),
-                    'Lead Grade': company.get('lead_grade', ''),
-                    'Lead Score': company.get('lead_score', 0),
-                    'Trigger Count': len(company.get('trigger_events', [])),
-                    'Contact Name': f"{contact.get('first_name', '')} {contact.get('last_name', '')}",
-                    'Title': contact.get('title', ''),
-                    'Email': contact.get('email', ''),
-                    'Confidence': contact.get('confidence_score', 0),
-                    'Subject Line': contact.get('generated_message', {}).get('subject', ''),
-                    'Message': contact.get('generated_message', {}).get('body', '')
-                })
-        
-        if export_data:
-            df = pd.DataFrame(export_data)
-            csv = df.to_csv(index=False)
-            
-            st.download_button(
-                label="📄 Download Full Report (CSV)",
-                data=csv,
-                file_name=f"ai_bdr_prospects_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
-    
-    with col2:
-        if st.button("🔄 Sync to HubSpot CRM", use_container_width=True):
-            if not os.getenv("HUBSPOT_API_KEY"):
-                st.warning("HubSpot API key required for CRM export")
-            else:
-                with st.spinner("Syncing to HubSpot..."):
-                    pipeline_agent = create_pipeline_manager_agent()
-                    new_crm_results = pipeline_agent.tools[1]._run(results['companies'], min_lead_grade)
-                    st.session_state.workflow_results['crm_results'] = new_crm_results
-                st.rerun()
-    
-    with col3:
-        if st.button("🗑️ Clear Results", use_container_width=True):
-            st.session_state.workflow_results = None
-            st.rerun()
+                        msg = c.get('generated_message')
+                        if msg:
+                            st.info(f"**Subject:** {msg.get('subject')}\n\n{msg.get('body')[:150]}...")
+                        st.divider()
 
-if __name__ == "__main__":
-    pass
+    # --- EXPORT SECTION ---
+    st.subheader("📥 Export")
+    
+    # Prepare CSV
+    csv_data = []
+    for comp in results['companies']:
+        trigger_txt = comp['trigger_events'][0]['description'] if comp.get('trigger_events') else ""
+        for cont in comp.get('contacts', []):
+            csv_data.append({
+                "Company": comp.get('name'),
+                "Industry": comp.get('industry'),
+                "Website": comp.get('domain'),
+                "Grade": comp.get('lead_grade'),
+                "Trigger": trigger_txt,
+                "Contact": f"{cont.get('first_name')} {cont.get('last_name')}",
+                "Role": cont.get('title', 'Unknown'), # <--- ADDED ROLE HERE
+                "Email": cont.get('email'),
+                "LinkedIn": cont.get('linkedin_url', ''),
+                "Subject": cont.get('generated_message', {}).get('subject')
+            })
+            
+    if csv_data:
+        df = pd.DataFrame(csv_data)
+        # Reorder columns to put Role next to Contact
+        cols = ["Company", "Industry", "Website", "Grade", "Trigger", "Contact", "Role", "Email", "LinkedIn", "Subject"]
+        df = df[cols]
+        
+        csv = df.to_csv(index=False)
+        st.download_button("📄 Download CSV", csv, "leads.csv", "text/csv")

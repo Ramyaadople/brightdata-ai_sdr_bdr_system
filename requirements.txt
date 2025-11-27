@@ -17,6 +17,9 @@ lxml>=4.9.0
 plotly>=5.15.0
 altair>=5.0.0
 
-# Optional MCP Integration (install separately if needed)
+# Optional MCP Integration (commented because not pip-installable by default)
 # mcp>=0.1.0
 # crewai-tools>=0.1.0
+
+# NLP Support (Spacy)
+spacy>=3.7.0

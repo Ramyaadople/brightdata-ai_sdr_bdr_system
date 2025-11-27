@@ -1,0 +1,324 @@
+[
+  {
+    "name": "FINTECH INDIA",
+    "industry": "Fintech",
+    "domain": "fintech.com",
+    "description": "FINTECH INDIA. Financial Services. MUMBAI, Maharashtra 235 followers. THE FUTURE OF FINANCE. Follow \u00b7 Report this company; Close menu. View all 10 employees ...",
+    "source": "linkedin_site_search",
+    "icp_score": 85,
+    "trigger_events": [
+      {
+        "type": "hiring_spike",
+        "severity": "high",
+        "description": "Active hiring detected at FINTECH INDIA - 9 open positions",
+        "date_detected": "2025-11-26T07:32:25.181395",
+        "source": "linkedin_api"
+      },
+      {
+        "type": "company_activity",
+        "severity": "medium",
+        "description": "Increased LinkedIn activity at FINTECH INDIA",
+        "date_detected": "2025-11-26T07:32:25.181409",
+        "source": "linkedin_api"
+      },
+      {
+        "type": "funding_round",
+        "severity": "high",
+        "description": "Recent funding activity detected at FINTECH INDIA",
+        "date_detected": "2025-11-26T07:32:32.362453",
+        "source": "news_search"
+      }
+    ],
+    "trigger_score": 40,
+    "contacts": [
+      {
+        "first_name": "Kapil",
+        "last_name": "Kapoor",
+        "title": "CTO",
+        "linkedin_url": "https://in.linkedin.com/in/kapilkapoor23",
+        "source": "mcp",
+        "email": "kapil.kapoor@fintech.com",
+        "email_valid": false,
+        "confidence_score": 50
+      },
+      {
+        "first_name": "Fintech",
+        "last_name": "VP",
+        "title": "VP Engineering",
+        "linkedin_url": "https://in.linkedin.com/in/hemantchhonkar",
+        "source": "mcp",
+        "email": "fintech.vp@fintech.com",
+        "email_valid": false,
+        "confidence_score": 50
+      },
+      {
+        "first_name": "Deepen",
+        "last_name": "Saha",
+        "title": "VP Engineering",
+        "linkedin_url": "https://in.linkedin.com/in/deepensaha",
+        "source": "mcp",
+        "email": "deepen.saha@fintech.com",
+        "email_valid": false,
+        "confidence_score": 50
+      },
+      {
+        "first_name": "Ravi",
+        "last_name": "Teja Prathi",
+        "title": "VP Engineering",
+        "linkedin_url": "https://in.linkedin.com/in/venkataraviteja",
+        "source": "mcp",
+        "email": "ravi.teja prathi@fintech.com",
+        "email_valid": false,
+        "confidence_score": 50
+      },
+      {
+        "first_name": "Fintech",
+        "last_name": "Founder",
+        "title": "Founder",
+        "linkedin_url": "https://in.linkedin.com/in/amit-kumar-6656044",
+        "source": "mcp",
+        "email": "fintech.founder@fintech.com",
+        "email_valid": false,
+        "confidence_score": 50
+      },
+      {
+        "first_name": "Naveen",
+        "last_name": "Kukreja",
+        "title": "Founder",
+        "linkedin_url": "https://in.linkedin.com/in/naveen-kukreja-b333013",
+        "source": "mcp",
+        "email": "naveen.kukreja@fintech.com",
+        "email_valid": false,
+        "confidence_score": 50
+      },
+      {
+        "first_name": "Sai",
+        "last_name": "Sudha Chandrasekaran",
+        "title": "Founder",
+        "linkedin_url": "https://in.linkedin.com/in/saisudhac",
+        "source": "mcp",
+        "email": "sai.sudha chandrasekaran@fintech.com",
+        "email_valid": false,
+        "confidence_score": 50
+      },
+      {
+        "first_name": "Fintech",
+        "last_name": "Strong",
+        "title": "Founder",
+        "linkedin_url": "https://in.linkedin.com/in/mahesh-shukla-19845840",
+        "source": "mcp",
+        "email": "fintech.strong@fintech.com",
+        "email_valid": false,
+        "confidence_score": 50
+      }
+    ],
+    "lead_score": 75.0,
+    "score_breakdown": {
+      "icp_score": 25,
+      "trigger_score": 30,
+      "contact_score": 0.0,
+      "timing_score": 15,
+      "company_health": 5,
+      "total_score": 75.0
+    },
+    "lead_grade": "B"
+  },
+  {
+    "name": "VIYONA FINTECH INDIA PRIVATE LIMITED",
+    "industry": "Fintech",
+    "domain": "viyona.com",
+    "description": "Viyona Fintech was founded in 2022 with a vision to reimagine India's digital payment landscape. Today, we are redefining how the nation transacts, saves, ...",
+    "source": "linkedin_site_search",
+    "icp_score": 85,
+    "trigger_events": [
+      {
+        "type": "hiring_spike",
+        "severity": "high",
+        "description": "Active hiring detected at VIYONA FINTECH INDIA PRIVATE LIMITED - 9 open positions",
+        "date_detected": "2025-11-26T07:32:48.194459",
+        "source": "linkedin_api"
+      },
+      {
+        "type": "company_activity",
+        "severity": "medium",
+        "description": "Increased LinkedIn activity at VIYONA FINTECH INDIA PRIVATE LIMITED",
+        "date_detected": "2025-11-26T07:32:48.194507",
+        "source": "linkedin_api"
+      },
+      {
+        "type": "funding_round",
+        "severity": "high",
+        "description": "Recent funding activity detected at VIYONA FINTECH INDIA PRIVATE LIMITED",
+        "date_detected": "2025-11-26T07:32:53.690413",
+        "source": "news_search"
+      }
+    ],
+    "trigger_score": 40,
+    "contacts": [
+      {
+        "first_name": "Nagaraj",
+        "last_name": "Kumar",
+        "title": "CTO",
+        "linkedin_url": "",
+        "source": "mcp",
+        "email": "nagaraj.kumar@viyona.com",
+        "email_valid": false,
+        "confidence_score": 50
+      },
+      {
+        "first_name": "Srinivas",
+        "last_name": "Rao Jadhav",
+        "title": "CTO",
+        "linkedin_url": "",
+        "source": "mcp",
+        "email": "srinivas.rao jadhav@viyona.com",
+        "email_valid": false,
+        "confidence_score": 50
+      },
+      {
+        "first_name": "Cloud",
+        "last_name": "Architecture",
+        "title": "CTO",
+        "linkedin_url": "https://in.linkedin.com/in/tushar-p-4aaa702b",
+        "source": "mcp",
+        "email": "cloud.architecture@viyona.com",
+        "email_valid": false,
+        "confidence_score": 50
+      },
+      {
+        "first_name": "Kishore",
+        "last_name": "Reddy Vuyyuru",
+        "title": "VP Engineering",
+        "linkedin_url": "https://in.linkedin.com/in/kishore-reddy-vuyyuru-593b0231a",
+        "source": "mcp",
+        "email": "kishore.reddy vuyyuru@viyona.com",
+        "email_valid": false,
+        "confidence_score": 50
+      },
+      {
+        "first_name": "Preeti",
+        "last_name": "Desai",
+        "title": "VP Engineering",
+        "linkedin_url": "https://www.linkedin.com/pub/dir/Preeti/Desai",
+        "source": "mcp",
+        "email": "preeti.desai@viyona.com",
+        "email_valid": false,
+        "confidence_score": 50
+      },
+      {
+        "first_name": "Ravindranath",
+        "last_name": "Yarlagadda",
+        "title": "Founder",
+        "linkedin_url": "",
+        "source": "mcp",
+        "email": "ravindranath.yarlagadda@viyona.com",
+        "email_valid": false,
+        "confidence_score": 50
+      },
+      {
+        "first_name": "Viyona",
+        "last_name": "Fintech",
+        "title": "Founder",
+        "linkedin_url": "https://www.linkedin.com/posts/abdu-wahab_viyonafintech-upi-npci-activity-7373983418499608576-IDMy",
+        "source": "mcp",
+        "email": "viyona.fintech@viyona.com",
+        "email_valid": false,
+        "confidence_score": 50
+      },
+      {
+        "first_name": "Abdul",
+        "last_name": "Wahab",
+        "title": "Founder",
+        "linkedin_url": "https://www.linkedin.com/posts/abdu-wahab_viyonafintech-upi-npci-activity-7373983418499608576-IDMy",
+        "source": "mcp",
+        "email": "abdul.wahab@viyona.com",
+        "email_valid": false,
+        "confidence_score": 50
+      },
+      {
+        "first_name": "Zubair",
+        "last_name": "Mustafa",
+        "title": "Founder",
+        "linkedin_url": "https://www.linkedin.com/posts/viyona-fintech_viyonafintech-smartpayments-securesolutions-activity-7269314160629317632-guwC",
+        "source": "mcp",
+        "email": "zubair.mustafa@viyona.com",
+        "email_valid": false,
+        "confidence_score": 50
+      }
+    ],
+    "lead_score": 75.0,
+    "score_breakdown": {
+      "icp_score": 25,
+      "trigger_score": 30,
+      "contact_score": 0.0,
+      "timing_score": 15,
+      "company_health": 5,
+      "total_score": 75.0
+    },
+    "lead_grade": "B"
+  },
+  {
+    "name": "Fintech Credit Systems India Private Limited",
+    "industry": "Fintech",
+    "domain": "fintech.com",
+    "description": "Fintech Credit Systems India Private Limited (CSI) is a young and vibrant web service firm with its offshore development center in Pune.",
+    "source": "linkedin_site_search",
+    "icp_score": 85,
+    "trigger_events": [
+      {
+        "type": "hiring_spike",
+        "severity": "high",
+        "description": "Active hiring detected at Fintech Credit Systems India Private Limited - 7 open positions",
+        "date_detected": "2025-11-26T07:33:12.774594",
+        "source": "linkedin_api"
+      },
+      {
+        "type": "company_activity",
+        "severity": "medium",
+        "description": "Increased LinkedIn activity at Fintech Credit Systems India Private Limited",
+        "date_detected": "2025-11-26T07:33:12.774610",
+        "source": "linkedin_api"
+      },
+      {
+        "type": "funding_round",
+        "severity": "high",
+        "description": "Recent funding activity detected at Fintech Credit Systems India Private Limited",
+        "date_detected": "2025-11-26T07:33:18.885729",
+        "source": "news_search"
+      }
+    ],
+    "trigger_score": 40,
+    "contacts": [
+      {
+        "first_name": "Linjin",
+        "last_name": "Tiruvangadan",
+        "title": "CTO",
+        "linkedin_url": "https://in.linkedin.com/in/linjin-tiruvangadan-7b516421",
+        "source": "mcp",
+        "email": "linjin.tiruvangadan@fintech.com",
+        "email_valid": false,
+        "confidence_score": 50
+      },
+      {
+        "first_name": "Ravi",
+        "last_name": "Teja Prathi",
+        "title": "VP Engineering",
+        "linkedin_url": "https://in.linkedin.com/in/venkataraviteja",
+        "source": "mcp",
+        "email": "ravi.teja prathi@fintech.com",
+        "email_valid": false,
+        "confidence_score": 50
+      }
+    ],
+    "lead_score": 75.0,
+    "score_breakdown": {
+      "icp_score": 25,
+      "trigger_score": 30,
+      "contact_score": 0.0,
+      "timing_score": 15,
+      "company_health": 5,
+      "total_score": 75.0
+    },
+    "lead_grade": "B"
+  }
+]

@@ -1,203 +1,154 @@
-<div align="center">
-  <a href="https://brightdata.com/">
-    <img src="https://mintlify.s3.us-west-1.amazonaws.com/brightdata/logo/light.svg" width="300" alt="Bright Data Logo">
-  </a>
+🤖 AI BDR/SDR Agent System
 
-# AI BDR/SDR Agent System
+An autonomous Business Development Representative (BDR) Agent that automates the entire outbound sales lifecycle. It finds companies, identifies verified decision-makers, detects buying signals, and writes personalized cold emails using a multi-agent architecture.
 
-Real-time prospecting with multi-agent intelligence and trigger-based personalization.
+🌟 Key Features
 
-<img src="https://img.shields.io/badge/python-3.11+-blue" />
-<img src="https://img.shields.io/badge/OpenAI-API-blueviolet" />
-<img src="https://img.shields.io/badge/License-MIT-blue" />
-</div>
+1. Intelligent Company Discovery
 
-<div align="center">
-<img src="https://media.brightdata.com/2025/09/AI-SDR-Agent-demo.gif" alt="AI SDR/BDR Agent Demo">
-</div>
+Targeted Search: Uses site:linkedin.com/company to find specific entities, avoiding "Top 10" listicles or directories.
 
----
+Smart Filtering: Automatically filters out Non-Profits, Foundations, and Associations using keyword heuristics.
 
-## Overview
+Real Domain Resolution: Performs secondary searches to find the actual company website (e.g., m2pfintech.com) instead of just the LinkedIn URL.
 
-This system uses **5 specialized AI agents**:
-  1. Company Discovery Agent — Find companies matching your ICP
-  2. Trigger Detection Agent — Identify buying signals and optimal timing
-  3. Contact Research Agent — Extract decision-maker information
-  4. Message Generation Agent — Create personalized outreach
-  5. Pipeline Manager — Score leads and integrate with CRM
+2. Deep Contact Research (The "Hunter" Engine)
 
-[**Visit the step-by-step guide on our blog**](https://brightdata.com/blog/ai/ai-sdr-agent-with-web-mcp)
+Smart Role Matching: If "CTO" isn't found, it automatically searches for synonyms like "VP Engineering", "Head of Technology", or "Technical Director".
 
----
+Strict Name Validation: Uses spaCy (NLP) and Regex to ensure names are human (e.g., "Ravi Pratap") and rejects business words (e.g., prevents "Dear Payment Services").
 
-## Prerequisites
+Current Role Verification: specific logic to reject profiles labeled "Former", "Past", or "Ex-".
 
-- Python 3.11+
-- Node.js and npm (for MCP server)
-- API Keys:
-    - [OpenAI API key](https://platform.openai.com/api-keys)
-    - [Bright Data](https://brightdata.com/) account with Web MCP access
-    - HubSpot CRM credentials (optional)
+3. Trigger-Based Personalization
 
----
+Event Detection: Scans news for Hiring Spikes, Funding Rounds, and Leadership changes.
 
-## Quick Start
+Contextual Messaging: GPT-4 writes emails referencing the specific trigger found (e.g., "Saw you are hiring for 9 engineering roles...").
 
-1. **Clone and setup:**
+4. Data Validation & Export
 
-        git clone <repository>
-        cd AI_BDR_SDR
-        python setup.py
+404 Checks: Automatically pings LinkedIn URLs to ensure they are live before exporting.
 
-2. **Configure API keys:**  
-   Edit `.env` file with your credentials:
+Clean CSV: Exports a structured CSV with columns for Company, Website, Contact Name, Role, Email, and Draft Message.
 
-        OPENAI_API_KEY=your_key_here
-        BRIGHT_DATA_API_TOKEN=your_token_here
-        HUBSPOT_API_KEY=your_hubspot_key_here
+🛠️ Tech Stack
 
-3. **Test the system:**
+UI: Streamlit
 
-        python test_workflow.py
+Orchestration: CrewAI
 
-4. **Run the application:**
+Web Search / Scraping: Bright Data (MCP Protocol)
 
-        streamlit run ai_bdr_system.py
+Intelligence: OpenAI (GPT-4o-mini)
 
----
+NLP/NER: spaCy (for name entity recognition)
 
-## Features
+Data Processing: Pandas
 
-- Multi-Agent Workflow: Parallel processing, real-time data, scoring, CRM integration
-- Trigger Intelligence: Hiring spikes, funding, leadership changes, expansion
-- Personalization Engine: Context-aware, trigger-based, multi-channel, A/B testing
-- Export & Integration: CSV, HubSpot sync, field mapping, bulk contacts
+🚀 Installation
 
----
+1. Setup Folder
 
-## System Architecture
+Create a new folder and save all the .py files provided in the chat (app.py, contact_research.py, etc.) into it.
 
-    ┌─────────────────────────────────────────────────────────────┐
-    │                    Streamlit Frontend                      │
-    ├─────────────────────────────────────────────────────────────┤
-    │                    CrewAI Orchestration                    │
-    ├─────────────────────────────────────────────────────────────┤
-    │  Discovery │ Triggers │ Contacts │ Messages │ Pipeline      │
-    │   Agent    │  Agent   │  Agent   │  Agent   │ Manager       │
-    ├─────────────────────────────────────────────────────────────┤
-    │    Bright Data MCP │ OpenAI │ HubSpot API                  │
-    └─────────────────────────────────────────────────────────────┘
+2. Create Virtual Environment
 
----
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-## Configuration
 
-### ICP Targeting
-  - Industry selection (SaaS, FinTech, E-commerce, etc.)
-  - Company size ranges
-  - Geographic targeting
-  - Custom criteria
+3. Install Dependencies
 
-### Message Types
-  - Cold email campaigns
-  - LinkedIn connection requests
-  - Follow-up sequences
-  - Custom templates
+pip install -r requirements.txt
 
-### Lead Scoring
-  - ICP match score (30%)
-  - Trigger event score (30%)
-  - Contact quality score (20%)
-  - Timing optimization (20%)
 
----
+4. Install NLP Models (Crucial)
 
-## API Integrations
+This system uses spaCy for name cleaning. You must download the language model:
 
-### Bright Data MCP
-  - Real-time web scraping
-  - LinkedIn company data
-  - News and press releases
-  - Contact information
+python -m spacy download en_core_web_sm
 
-### OpenAI GPT-4
-  - Message personalization
-  - Content generation
-  - Trigger analysis
-  - Lead qualification
 
-### HubSpot CRM
-  - Contact creation/updates
-  - Lead scoring sync
-  - Custom properties
-  - Pipeline management
+⚙️ Configuration
 
----
+Create a .env file in the root directory and add your API keys:
 
-## Troubleshooting
+# Required for Web Search
+BRIGHT_DATA_API_TOKEN=your_bright_data_token
 
-1. MCP Connection Errors
+# Required for Intelligence & Message Writing
+OPENAI_API_KEY=sk-your_openai_key
 
-        npm install -g @brightdata/mcp
+# Optional: For CRM Export
+HUBSPOT_API_KEY=your_hubspot_key
 
-2. Missing Dependencies
 
-        pip install -r requirements.txt
+🏃‍♂️ How to Run
 
-3. API Key Errors
+Start the application:
 
-    - Verify keys in `.env` file
-    - Check API quotas and permissions
+streamlit run app.py
 
-### Validation
 
-        python test_workflow.py
+Open your browser to the local URL (usually http://localhost:8501).
 
----
+Sidebar Settings:
 
-## Performance Metrics
+Select Industry (e.g., FinTech).
 
-- Companies discovered: 15-25
-- Trigger events: 8-15
-- Quality contacts: 40-60
-- Response rate: 15-25%
-- Meeting bookings: 3-8%
+Select Size (e.g., Medium).
 
----
+Select Target Roles (e.g., CTO, CEO).
 
-## Security & Privacy
+Click "Start Multi-Agent Prospecting".
 
-- API keys stored in environment variables
-- No data persistence beyond session
-- GDPR-compliant contact handling
-- Rate limiting for API protection
+Once finished, scroll down to download the Validated CSV.
 
----
+📂 Project Structure
 
-## License
+Ensure your folder has these files:
 
-This project is for educational and internal demo purposes.
+File
 
----
+Purpose
 
-## Learn More
+app.py
 
-- [How Bright Data's Web MCP works](https://docs.brightdata.com/mcp-server/overview)
-- [Streamlit Documentation](https://docs.streamlit.io/)
-- [OpenAI Platform Docs](https://platform.openai.com/docs)
-- [CrewAI Docs](https://docs.crewai.com/)
+The main Streamlit dashboard and orchestration logic.
 
----
+company_discovery.py
 
-**Ready to elevate your sales development? Deploy your own AI SDR Agent and transform manual outreach into automated, qualified pipeline—instantly!**
+Agent that finds companies and filters out junk/non-profits.
 
-<p align="center">
-  <a href="https://brightdata.com/cp/start" target="_blank" style="text-decoration:none;">
-    <img src="https://img.shields.io/badge/Get%20Started-%233D7FFC?style=for-the-badge&logo=rocket&logoColor=white" alt="Get Started" style="height: 48px; border-radius: 8px;">
-  </a>
-</p>
+contact_research.py
 
----
+Agent that finds people, handles role synonyms, and cleans names.
 
-**Made with ❤️ using Bright Data & OpenAI**
+trigger_detection.py
+
+Agent that finds news (Funding/Hiring) to use as hooks.
+
+message_generation.py
+
+Agent that uses GPT-4 to write the actual email copy.
+
+pipeline_manager.py
+
+Agent that scores leads (A/B/C) and handles CRM export.
+
+mcp_client.py
+
+The client handling connection to Bright Data.
+
+utils.py
+
+Shared utilities for URL parsing and API safety.
+
+requirements.txt
+
+List of python libraries needed.
+
+.env
+
+Your API keys (Bright Data, OpenAI).

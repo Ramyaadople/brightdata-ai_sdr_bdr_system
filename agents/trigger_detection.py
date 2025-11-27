@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typing import Any, List
 from pydantic import BaseModel, Field
 from .utils import validate_companies_input, safe_mcp_call
+import os
 
 class TriggerDetectionInput(BaseModel):
     companies: List[dict] = Field(description="List of companies to analyze for trigger events")
@@ -27,6 +28,9 @@ class TriggerDetectionTool(BaseTool):
                 
             triggers = []
             
+            ai_jd_signals = self._detect_ai_jd_triggers(company)
+            triggers.extend(ai_jd_signals)
+            
             hiring_signals = self._detect_hiring_triggers(company)
             triggers.extend(hiring_signals)
             
@@ -38,6 +42,9 @@ class TriggerDetectionTool(BaseTool):
             
             expansion_signals = self._detect_expansion_triggers(company)
             triggers.extend(expansion_signals)
+
+            
+
             
             company['trigger_events'] = triggers
             company['trigger_score'] = self._calculate_trigger_score(triggers)
@@ -72,7 +79,40 @@ class TriggerDetectionTool(BaseTool):
                 })
         
         return triggers
-    
+
+    def _detect_ai_jd_triggers(self, company):
+        """Detect if the company is hiring for AI-related roles using keyword scanning."""
+        
+        ai_keywords = [
+            'artificial intelligence', 'ai engineer', 'machine learning', 'ml engineer',
+            'data scientist', 'deep learning', 'nlp', 'natural language processing',
+            'genai', 'generative ai', 'llm', 'large language model', 'computer vision',
+            'predictive modeling', 'mlops', 'model deployment'
+        ]
+
+        linkedin_data = safe_mcp_call(self.mcp, 'scrape_company_linkedin', company['name'])
+        triggers = []
+
+        if not linkedin_data:
+            return triggers
+
+        # job descriptions / open positions
+        job_posts = linkedin_data.get('hiring_posts', [])
+
+        for post in job_posts:
+            text = str(post).lower()
+            if any(keyword in text for keyword in ai_keywords):
+                triggers.append({
+                    'type': 'ai_hiring_trigger',
+                    'severity': 'high',
+                    'description': f"AI-related hiring detected for {company['name']} (AI/ML roles found)",
+                    'date_detected': datetime.now().isoformat(),
+                    'source': 'linkedin_ai_jd_scan'
+                })
+                break
+
+        return triggers
+
     
     def _detect_funding_triggers(self, company):
         """Detect funding triggers using news search."""

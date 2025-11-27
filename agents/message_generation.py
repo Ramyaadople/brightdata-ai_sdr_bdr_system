@@ -14,49 +14,50 @@ class MessageGenerationTool(BaseTool):
     description: str = "Create personalized outreach based on company intelligence"
     args_schema: type[BaseModel] = MessageGenerationInput
     client: Any = None
-    
+
     def __init__(self):
         super().__init__()
         self.client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    
+
     def _run(self, companies, message_type="cold_email") -> list:
         # Ensure companies is a list
         if not isinstance(companies, list):
             print(f"Warning: Expected list of companies, got {type(companies)}")
             return []
-        
+
         if not companies:
             print("No companies provided for message generation")
             return []
-        
+
         for company in companies:
             if not isinstance(company, dict):
                 print(f"Warning: Expected company dict, got {type(company)}")
                 continue
-                
+
             for contact in company.get('contacts', []):
                 if not isinstance(contact, dict):
                     continue
-                    
+
                 message = self._generate_personalized_message(contact, company, message_type)
                 contact['generated_message'] = message
                 contact['message_quality_score'] = self._calculate_message_quality(message, company)
+
         return companies
-    
+
     def _generate_personalized_message(self, contact, company, message_type):
         context = self._build_message_context(contact, company)
-        
+
         if message_type == "cold_email":
             return self._generate_cold_email(context)
         elif message_type == "linkedin_message":
             return self._generate_linkedin_message(context)
         else:
             return self._generate_cold_email(context)
-    
+
     def _build_message_context(self, contact, company):
         triggers = company.get('trigger_events', [])
         primary_trigger = triggers[0] if triggers else None
-        
+
         return {
             'contact_name': contact.get('first_name', ''),
             'contact_title': contact.get('title', ''),
@@ -65,12 +66,12 @@ class MessageGenerationTool(BaseTool):
             'primary_trigger': primary_trigger,
             'trigger_count': len(triggers)
         }
-    
+
     def _generate_cold_email(self, context):
         trigger_text = ""
         if context['primary_trigger']:
             trigger_text = f"I noticed {context['company_name']} {context['primary_trigger']['description'].lower()}."
-        
+
         prompt = f"""Write a personalized cold email:
 
 Contact: {context['contact_name']}, {context['contact_title']} at {context['company_name']}
@@ -95,9 +96,9 @@ BODY: [email body]"""
             temperature=0.7,
             max_tokens=300
         )
-        
+
         return self._parse_email_response(response.choices[0].message.content)
-    
+
     def _generate_linkedin_message(self, context):
         prompt = f"""Write a LinkedIn connection request (max 300 chars):
 
@@ -112,17 +113,17 @@ Be professional, reference their company activity, no direct sales pitch."""
             temperature=0.7,
             max_tokens=100
         )
-        
+
         return {
             'subject': 'LinkedIn Connection Request',
             'body': response.choices[0].message.content.strip()
         }
-    
+
     def _parse_email_response(self, response):
         lines = response.strip().split('\n')
         subject = ""
         body_lines = []
-        
+
         for line in lines:
             if line.startswith('SUBJECT:'):
                 subject = line.replace('SUBJECT:', '').strip()
@@ -130,26 +131,32 @@ Be professional, reference their company activity, no direct sales pitch."""
                 body_lines.append(line.replace('BODY:', '').strip())
             elif body_lines:
                 body_lines.append(line)
-        
+
         return {
             'subject': subject,
             'body': '\n'.join(body_lines).strip()
         }
-    
+
     def _calculate_message_quality(self, message, company):
         score = 0
         body = message.get('body', '').lower()
-        
+
         if company.get('name', '').lower() in message.get('subject', '').lower():
             score += 25
-        if company.get('trigger_events') and any(t.get('type', '') in body for t in company['trigger_events']):
+
+        if company.get('trigger_events') and any(
+            t.get('type', '') in body for t in company['trigger_events']
+        ):
             score += 30
+
         if len(body.split()) <= 120:
             score += 20
+
         if any(word in body for word in ['call', 'meeting', 'discuss', 'connect']):
             score += 25
-        
+
         return score
+
 
 def create_message_generation_agent():
     return Agent(

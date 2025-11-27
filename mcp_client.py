@@ -97,59 +97,58 @@ class BrightDataMCP:
             print(f"Error searching company news for {company_name}: {str(e)}")
             return {"error": str(e), "source": "brightdata_mcp"}
     
+   # ... (rest of the file remains the same)
+
     def _mcp_search(self, query, num_results=10):
         """Execute search using MCP tools - based on your example."""
+        # This print confirms the adapter is initialized
+        # print("Starting MCPAdapt...") # Removed for brevity
+        
         with MCPAdapt(self.server_params, CrewAIAdapter()) as mcp_tools:
             try:
                 if not mcp_tools:
                     print("⚠️ No MCP tools available")
                     return {'results': []}
-                
-                for tool in mcp_tools:
-                    try:
-                        tool_name = getattr(tool, 'name', str(tool))
-                        print(f"🔍 Trying MCP tool: {tool_name}")
-                        
-                        if 'search_engine' in tool_name and 'batch' not in tool_name:
-                            try:
-                                if hasattr(tool, '_run'):
-                                    result = tool._run(query=query, engine="google")
-                                elif hasattr(tool, 'run'):
-                                    result = tool.run(query=query, engine="google")
-                                elif hasattr(tool, '__call__'):
-                                    result = tool(query=query, engine="google")
-                                else:
-                                    result = tool.search_engine(query=query, engine="google")
-                                
-                                if result:
-                                    return self._parse_mcp_results(result)
-                            except Exception as method_error:
-                                print(f"⚠️ Method failed for {tool_name}: {str(method_error)}")
-                                continue
-                        
-                        elif any(keyword in tool_name.lower() for keyword in ['scrape', 'web', 'browser']):
-                            try:
-                                if hasattr(tool, '_run'):
-                                    result = tool._run(url=f"https://www.google.com/search?q={query}")
-                                elif hasattr(tool, 'run'):
-                                    result = tool.run(url=f"https://www.google.com/search?q={query}")
-                                
-                                if result:
-                                    return self._parse_mcp_results(result)
-                            except Exception as method_error:
-                                print(f"⚠️ Scrape method failed for {tool_name}: {str(method_error)}")
-                                continue
-                        
-                    except Exception as tool_error:
-                        print(f"⚠️ Tool {tool_name} failed: {str(tool_error)}")
-                        continue
-                
-                print(f"⚠️ No MCP tool could process: {query}")
-                return {'results': []}
-                
+
+                # Find the search_engine tool specifically
+                search_tool = next((
+                    tool for tool in mcp_tools 
+                    if 'search_engine' in getattr(tool, 'name', str(tool)) and 'batch' not in getattr(tool, 'name', str(tool))
+                ), None)
+
+                if search_tool:
+                    tool_name = getattr(search_tool, 'name', 'search_engine')
+                    print(f"🔍 Executing MCP tool: {tool_name}")
+
+                    # --- Corrected Search Tool Execution ---
+                    # Prioritize the public .run method if it exists on the tool object
+                    if hasattr(search_tool, 'run'):
+                        result = search_tool.run(query=query, engine="google")
+                    # Fallback to _run, as seen in the original code's preference
+                    elif hasattr(search_tool, '_run'):
+                        result = search_tool._run(query=query, engine="google")
+                    # Fallback to direct call, if the tool object is callable
+                    elif hasattr(search_tool, '__call__'):
+                        result = search_tool(query=query, engine="google")
+                    else:
+                        print(f"⚠️ Search tool {tool_name} has no recognized run/call method.")
+                        return {'results': []}
+                    # --- End Corrected Execution ---
+
+                    if result:
+                        return self._parse_mcp_results(result)
+                    else:
+                        print("❌ Search tool returned no result object.")
+                        return {'results': []}
+                else:
+                    print(f"⚠️ Search tool not found in available tools.")
+                    return {'results': []}
+                    
             except Exception as e:
                 print(f"❌ MCP scraping failed: {str(e)}")
                 return {'results': []}
+
+# ... (rest of the file remains the same)
     
     def _parse_mcp_results(self, mcp_result):
         """Parse MCP tool results into expected format."""

@@ -1,171 +1,227 @@
-from crewai import Agent, Task
+from crewai import Agent
 from crewai.tools import BaseTool
+from pydantic import BaseModel, Field, PrivateAttr
 from typing import Any, List
-from pydantic import BaseModel, Field
+import spacy
 import re
-from .utils import validate_companies_input, safe_mcp_call, validate_email, deduplicate_by_key
 
+# ==========================================
+# 1. INPUT SCHEMA
+# ==========================================
 class ContactResearchInput(BaseModel):
     companies: List[dict] = Field(description="List of companies to research contacts for")
-    target_roles: List[str] = Field(description="List of target roles to find contacts for")
+    target_roles: List[str] = Field(description="List of target roles (e.g. CTO, Founder)")
 
+# ==========================================
+# 2. MAIN TOOL CLASS
+# ==========================================
 class ContactResearchTool(BaseTool):
     name: str = "research_contacts"
-    description: str = "Find and verify decision-maker contact information using MCP"
+    description: str = "Find decision-maker contact information using Smart Role Matching"
     args_schema: type[BaseModel] = ContactResearchInput
-    mcp: Any = None
     
+    mcp: Any = Field(default=None, description="The MCP Client", exclude=True)
+    _nlp: Any = PrivateAttr() 
+
     def __init__(self, mcp_client):
         super().__init__()
         self.mcp = mcp_client
+        try:
+            self._nlp = spacy.load("en_core_web_sm")
+        except OSError:
+            print("   [System] Downloading Spacy AI Model (en_core_web_sm)...")
+            from spacy.cli import download
+            download("en_core_web_sm")
+            self._nlp = spacy.load("en_core_web_sm")
     
     def _run(self, companies, target_roles) -> list:
-        companies = validate_companies_input(companies)
-        if not companies:
-            return []
+        if not companies: return []
+        if not isinstance(target_roles, list): target_roles = [target_roles]
         
-        if not isinstance(target_roles, list):
-            target_roles = [target_roles] if target_roles else []
+        print(f"   [Contact Research] Searching for roles: {', '.join(target_roles)}")
         
         for company in companies:
-                
-            contacts = []
+            all_contacts = []
             
             for role in target_roles:
-                role_contacts = self._search_contacts_by_role(company, role)
+                # 1. Smart Search
+                role_contacts = self._smart_role_search(company, role)
+                
                 for contact in role_contacts:
+                    # 2. Enrich
                     enriched = self._enrich_contact_data(contact, company)
                     if self._validate_contact(enriched):
-                        contacts.append(enriched)
+                        all_contacts.append(enriched)
             
-            company['contacts'] = self._deduplicate_contacts(contacts)
-            company['contact_score'] = self._calculate_contact_quality(contacts)
+            company['contacts'] = self._deduplicate_contacts(all_contacts)
+            print(f"   [Contact Research] {company['name']}: Found {len(company['contacts'])} contacts.")
         
         return companies
-    
-    def _search_contacts_by_role(self, company, role):
-        """Search for contacts by role using MCP."""
-        contacts = []
+
+    def _smart_role_search(self, company, role):
+        # Expanded Synonyms (VP = Vice President)
+        synonyms_map = {
+            "CTO": ["Chief Technology Officer", "VP Engineering", "Vice President Engineering", "Head of Engineering"],
+            "CEO": ["Chief Executive Officer", "Founder", "Co-Founder", "Managing Director", "MD", "Owner"],
+            "CFO": ["Chief Financial Officer", "VP Finance", "Vice President Finance"],
+            "CMO": ["Chief Marketing Officer", "VP Marketing", "Vice President Marketing"],
+            "VP Sales": ["Head of Sales", "Chief Revenue Officer", "CRO", "Director of Sales", "Vice President Sales"],
+            "Founder": ["Co-Founder", "CEO", "Owner"]
+        }
         
-        search_query = f"{company['name']} {role} LinkedIn contact"
-        search_result = safe_mcp_call(self.mcp, 'search_company_news', search_query)
-        
-        if search_result and search_result.get('results'):
-            contacts.extend(self._extract_contacts_from_mcp_results(search_result['results'], role))
-        
-        if not contacts:
-            contact_query = f"{company['name']} {role} email contact"
-            contact_result = safe_mcp_call(self.mcp, 'search_company_news', contact_query)
-            if contact_result and contact_result.get('results'):
-                contacts.extend(self._extract_contacts_from_mcp_results(contact_result['results'], role))
-        
-        return contacts[:3]
-    
-    def _extract_contacts_from_mcp_results(self, results, role):
-        """Extract contact information from MCP search results."""
-        contacts = []
-        
-        for result in results:
-            try:
-                title = result.get('title', '')
-                snippet = result.get('snippet', '')
-                url = result.get('url', '')
+        search_terms = [role]
+        if role in synonyms_map:
+            search_terms.extend(synonyms_map[role])
+            
+        for term in search_terms:
+            # 🛑 FIX 1: REMOVED QUOTES from Company Name for broader matching
+            # Query: M2P Fintech "Chief Technology Officer" site:linkedin.com/in/
+            query = f'{company["name"]} "{term}" site:linkedin.com/in/'
+            
+            result = self._safe_mcp_call(self.mcp, 'search_general', query)
+            
+            if result and result.get('results'):
+                contact = self._extract_contact_from_results(
+                    result['results'], 
+                    target_role=term,
+                    company_name=company['name']
+                )
                 
-                names = self._extract_names_from_text(title + ' ' + snippet)
-                
-                for name_parts in names:
-                    if len(name_parts) >= 2:
-                        first_name, last_name = name_parts[0], ' '.join(name_parts[1:])
-                        
-                        contacts.append({
-                            'first_name': first_name,
-                            'last_name': last_name,
-                            'title': role,
-                            'linkedin_url': url if 'linkedin' in url else '',
-                            'data_sources': 1,
-                            'source': 'mcp_search'
-                        })
-                        
-                        if len(contacts) >= 2:
-                            break
-                            
-            except Exception as e:
-                print(f"Error extracting contact from result: {str(e)}")
+                if contact:
+                    return [contact] # Return list for consistency
+        
+        return []
+
+    def _extract_contact_from_results(self, results, target_role, company_name):
+        for res in results:
+            title = res.get('title', '').strip()
+            snippet = res.get('snippet', '').strip()
+            link = res.get('link', '') or res.get('url', '')
+            full_text = (title + " " + snippet).lower()
+            
+            # 1. Check for 'Past' indicators (using regex boundaries to avoid "Experience" matching "Ex")
+            if re.search(r'\b(former|past|ex-|previous|retired)\b', title.lower()):
                 continue
-        
-        return contacts
-    
-    def _extract_names_from_text(self, text):
-        """Extract likely names from text."""
-        import re
-        
-        name_patterns = [
-            r'\b([A-Z][a-z]+)\s+([A-Z][a-z]+)\b',
-            r'\b([A-Z][a-z]+)\s+([A-Z]\.?\s*[A-Z][a-z]+)\b',
-            r'\b([A-Z][a-z]+)\s+([A-Z][a-z]+)\s+([A-Z][a-z]+)\b'
-        ]
-        
-        names = []
-        for pattern in name_patterns:
-            matches = re.findall(pattern, text)
-            for match in matches:
-                if isinstance(match, tuple):
-                    names.append(list(match))
+
+            # 🛑 FIX 2: RELAXED ROLE CHECK
+            # Instead of checking ALL words, we check KEYWORDS.
+            # e.g. If looking for "VP Engineering", match "Vice President" OR "VP" AND "Engineering"
+            
+            # Normalize role for checking (VP -> Vice President handling)
+            role_keywords = target_role.lower().replace("vp ", "vice president ").split()
+            
+            # Check if enough keywords exist to be confident
+            # We require at least one major word (like "Engineering" or "Technology") + title (CTO/VP)
+            # Simplified: Check if the main part of the role exists
+            matches = sum(1 for word in role_keywords if word in full_text)
+            
+            # If < 50% of the role words are found, skip.
+            if matches / len(role_keywords) < 0.5:
+                continue
+
+            # 3. Name Extraction
+            names = self._extract_names_from_text(title, company_name)
+            
+            if names:
+                primary_name = names[0]
+                return {
+                    'first_name': primary_name[0],
+                    'last_name': " ".join(primary_name[1:]),
+                    'title': target_role, # Use the specific term found (e.g. "Founder")
+                    'linkedin_url': link,
+                    'source': 'mcp'
+                }
                 
-        return names[:3]
-    
+        return None
+
+    def _extract_names_from_text(self, text, company_name=""):
+        if not text: return []
+        
+        # Clean Titles
+        titles = [r'\bFAAN\b', r'\bDNP\b', r'\bPhD\b', r'\bMD\b', r'\bDr\.\b', r'\bMBA\b']
+        clean_text = text
+        for t in titles:
+            clean_text = re.sub(t, '', clean_text, flags=re.IGNORECASE)
+
+        doc = self._nlp(clean_text)
+        names = []
+        
+        BAD_WORDS = ["Health", "Medical", "System", "Holdings", "Group", "Global", 
+                     "China", "Payment", "Services", "Inc", "Ltd", "Contact", "Team", 
+                     "Profile", "View", "LinkedIn", "Member"]
+        
+        for ent in doc.ents:
+            if ent.label_ == "PERSON":
+                name_text = ent.text.strip()
+                
+                # Filter bad names
+                if company_name and (name_text.lower() in company_name.lower() or company_name.lower() in name_text.lower()):
+                    continue
+                if any(bad.lower() in name_text.lower() for bad in BAD_WORDS): continue
+                if any(x in name_text.lower() for x in [' pvt', ' ltd', ' inc', ' corp']): continue
+
+                parts = name_text.split()
+                
+                # 🛑 FIX 3: RELAXED NAME VALIDATION
+                # Allow: "Ravi P.", "Jean-Luc"
+                if len(parts) >= 2:
+                    is_valid_name = True
+                    for p in parts:
+                        # Allow letters, dots, hyphens
+                        if not re.match(r"^[A-Za-z\.\-]+$", p):
+                            is_valid_name = False
+                            break
+                        # Must start Uppercase
+                        if p[0].isalpha() and not p[0].isupper():
+                            is_valid_name = False
+                            break
+                    
+                    if is_valid_name:
+                        names.append(parts)
+        
+        return names
+
     def _enrich_contact_data(self, contact, company):
-        if not contact.get('email'):
-            contact['email'] = self._generate_email(
-                contact['first_name'], 
-                contact['last_name'], 
-                company.get('domain', '')
-            )
+        first = contact.get('first_name')
+        last = contact.get('last_name')
+        domain = company.get('domain')
         
-        contact['email_valid'] = validate_email(contact.get('email', ''))
-        
-        contact['confidence_score'] = self._calculate_confidence(contact)
-        
+        if all([first, last, domain]):
+            # Clean names for email
+            f_clean = re.sub(r'[^a-zA-Z]', '', first.lower())
+            l_clean = re.sub(r'[^a-zA-Z]', '', last.lower())
+            
+            contact['email'] = f"{f_clean}.{l_clean}@{domain}"
+            contact['email_valid'] = False 
+            contact['confidence_score'] = 50 
+        else:
+            contact['email'] = ""
+            contact['confidence_score'] = 10
         return contact
-    
-    def _generate_email(self, first, last, domain):
-        if not all([first, last, domain]):
-            return ""
-        return f"{first.lower()}.{last.lower()}@{domain}"
-    
-    
-    def _calculate_confidence(self, contact):
-        score = 0
-        if contact.get('linkedin_url'): score += 30
-        if contact.get('email_valid'): score += 25
-        if contact.get('data_sources', 0) > 1: score += 20
-        if all(contact.get(f) for f in ['first_name', 'last_name', 'title']): score += 25
-        return score
-    
-    def _validate_contact(self, contact):
-        required = ['first_name', 'last_name', 'title']
-        return (all(contact.get(f) for f in required) and 
-                contact.get('confidence_score', 0) >= 50)
-    
+
     def _deduplicate_contacts(self, contacts):
-        unique = deduplicate_by_key(
-            contacts, 
-            lambda c: c.get('email', '') or f"{c.get('first_name', '')}_{c.get('last_name', '')}"
-        )
-        return sorted(unique, key=lambda x: x.get('confidence_score', 0), reverse=True)
-    
-    def _calculate_contact_quality(self, contacts):
-        if not contacts:
-            return 0
-        avg_confidence = sum(c.get('confidence_score', 0) for c in contacts) / len(contacts)
-        high_quality = sum(1 for c in contacts if c.get('confidence_score', 0) >= 75)
-        return min(avg_confidence + (high_quality * 5), 100)
+        unique = {}
+        for c in contacts:
+            key = f"{c['first_name']}{c['last_name']}"
+            if key not in unique: unique[key] = c
+        return list(unique.values())
+
+    def _validate_contact(self, contact):
+        return contact.get('first_name') and contact.get('last_name')
+
+    def _safe_mcp_call(self, client, method, query):
+        try:
+            if hasattr(client, method):
+                return getattr(client, method)(query)
+            return client._mcp_search(query)
+        except:
+            return {}
 
 def create_contact_research_agent(mcp_client):
     return Agent(
-        role='Contact Intelligence Specialist',
-        goal='Find accurate contact information for decision-makers using MCP',
-        backstory='Expert at finding and verifying contact information using advanced MCP search tools.',
+        role='Contact Researcher',
+        goal='Find decision-maker contact information',
+        backstory='Expert at finding email addresses and validating contact details.',
         tools=[ContactResearchTool(mcp_client)],
         verbose=True
     )
