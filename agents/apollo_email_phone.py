@@ -3,10 +3,11 @@ import requests
 
 def apollo_lookup_by_linkedin(linkedin_url: str, reveal_phone: bool):
     """
-    Standalone Apollo Lookup Module.
-    Takes LinkedIn URL and returns email + phone.
-    Works without modifying ContactResearchTool.
+    Apollo Enrichment Module (Standalone)
+    Takes LinkedIn URL → returns email + phone.
+    Not connected to ContactResearchTool.
     """
+
     APOLLO_API_KEY = os.getenv("APOLLO_API_KEY")
 
     if not APOLLO_API_KEY:
@@ -31,8 +32,8 @@ def apollo_lookup_by_linkedin(linkedin_url: str, reveal_phone: bool):
     }
 
     try:
-        resp = requests.post(url, json=payload, headers=headers).json()
-        person = resp.get("person")
+        response = requests.post(url, json=payload, headers=headers).json()
+        person = response.get("person")
 
         if not person:
             return {"status": "not_found", "email": None, "phone": None}
